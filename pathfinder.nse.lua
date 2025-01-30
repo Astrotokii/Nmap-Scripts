@@ -42,7 +42,7 @@ local paths = {
 }
 
 portrule = function(host, port)
-    return port.number == 3000 or shortport.http(host, port)
+    return port.number == 3000 or shortport.http(port, host)
 end 
 
 -- Defines the action function
@@ -54,23 +54,18 @@ action = function(host, port)
         stdnse.print_debug(1, "Testing path: %s", path)
       
 
-        local ok, resp
+        local resp = http.get(host, port, path)
 
-        -- If the request went through:
-        if ok and resp then
-            -- Debugging: Print response status
-            stdnse.print_debug(1, "Path %s returned status %d", path, resp.status or -1)
-            stdnse.print_debug(1, "Response body for path %s: %s", path, resp.body or "No body")
-          
             if resp.status == 200 then 
-                if resp.body and (
-                    resp.body:lower():find("page not found") or
-                    resp.body:lower():find("not available") or
-                    resp.body:lower():find("doesn't exist")
-                ) then -- Checks for common error messages
-                    table.insert(results, path .. " returned a 200 OK but the page was not found") 
-                else
-                    table.insert(results, path .. " returned HTTP 200 OK")
+                if resp.body then
+                    local body_lower = resp.body:lower()
+                    if body_lower:find("page not found") or
+                       body_lower:find("not available") or
+                       body_lower:find("doesn't exist") then -- Checks for common error messages
+                        table.insert(results, path .. " returned a 200 OK but the page was not found") 
+                    else
+                        table.insert(results, path .. " returned HTTP 200 OK")
+                    end
                 end
             elseif resp.status == 401 or resp.status == 403 then
                 table.insert(results, path .. " returned HTTP " .. resp.status)
@@ -80,20 +75,15 @@ action = function(host, port)
                 table.insert(results, path .. " permanently redirected (301)")
             elseif resp.status == 429 then
                 table.insert(results, path .. " received HTTP 429 Too Many Requests")
-            elseif resp.status >= 500 then
+            elseif resp.status == 500 then
                 table.insert(results, path .. " received server error HTTP " .. resp.status)
-            else
+                stdnse.print_debug(1, "Path '%s' returned status %d", path, resp.status) -- Debugging: Print response status
                 stdnse.print_debug(1, "Path %s returned status %d", path, resp.status) -- Debugging: Print response status
             end
         end
-    end
 
     if #results > 0 then
-        return stdnse.format_output(
-            true,
-            "Found paths:",
-            table.concat(results, "\n")
-        )
+        return table.concat(results, "\n")
     else
         return "No hidden paths found."
     end

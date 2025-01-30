@@ -48,32 +48,14 @@ end
 -- Defines the action function
 action = function(host, port)
     local results = {}
-    -- Defines retry parameters
-    local max_retries = 3          -- Maximum number of retry attempts
-    local retry_delay = 0.1        -- Delay between retries in seconds (100 ms)
 
     for _, path in ipairs(paths) do
         -- Debugging: Indicate which path is being tested
         stdnse.print_debug(1, "Testing path: %s", path)
       
-        -- Initialize retry counters
-        local retries = 0
+
         local ok, resp
 
-        -- Retry loop
-        repeat
-            -- Performs the HTTP GET request with a timeout
-            ok, resp = http.get(host, port, path, { timeout = 5 })  -- 5-second timeout
-          
-            if ok and resp then
-                break  -- Exit the retry loop if the request is successful
-            else
-                retries = retries + 1
-                stdnse.print_debug(1, "Retrying path: %s (Attempt %d)", path, retries)
-                nmap.sleep(retry_delay)  -- Wait before retrying
-            end
-        until retries >= max_retries
-      
         -- If the request went through:
         if ok and resp then
             -- Debugging: Print response status
@@ -103,13 +85,6 @@ action = function(host, port)
             else
                 stdnse.print_debug(1, "Path %s returned status %d", path, resp.status) -- Debugging: Print response status
             end
-          
-            nmap.sleep(0.1)  -- Sleeps for 100 milliseconds
-            -- For external targets, consider a longer delay:
-            -- nmap.sleep(0.5)  -- Sleeps for 500 milliseconds
-        else
-            stdnse.print_debug(1, "Failed to get response for path: %s after %d attempts", path, retries) -- Debugging: Print failure message
-            table.insert(results, path .. " failed after " .. retries .. " attempts") 
         end
     end
 
